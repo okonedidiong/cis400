@@ -32,21 +32,27 @@ def docs_example():
     return docs_complete
 
 def get_comments():
-    df=pd.read_csv('lifestyle_food.csv', sep=',',header=None)
+    #df=pd.read_csv('reddit_opiates.csv', sep=',',header=None)
+    df = pd.read_csv('reddit_opiates.csv', sep=',', header=None)
     data = df.values
-    comments = data[:, [1]]
+    comments = data[0:100, [0]] #opiates
+    #comments = data[0:50, [1]] #lifestyle
     comments = comments.tolist()
+    #print(comments)
     comments = [comment for sublist in comments for comment in sublist]
+    #print(comments)
+    '''
     for i in range(len(comments)):
         if type(comments[i]) == float:
             comments[i] = str(0)
+    '''
     return comments
 
 def get_doc_term_matrix(comments, dictionary):
     # Converting list of documents (corpus) into Document Term Matrix using dictionary prepared above.
     doc_term_matrix = [dictionary.doc2bow(comment) for comment in comments[0:20]]
-    print(doc_term_matrix)
-    print(np.var(doc_term_matrix))
+    #print(doc_term_matrix)
+    #print(np.var(doc_term_matrix))
     return doc_term_matrix
 
 def train_model():
@@ -58,22 +64,112 @@ def train_model():
     # Creating the object for LDA model using gensim library
     Lda = gensim.models.ldamodel.LdaModel
     # Running and Training LDA model on the document term matrix.
-    lda_model = Lda(doc_term_matrix, num_topics=3, id2word = dictionary, passes=50)
+    lda_model = Lda(doc_term_matrix, num_topics=5, id2word = dictionary, passes=50)
     # Save model
     lda_model.save('lda_model')
-    print(lda_model.print_topics(num_topics=3, num_words=3))
+    print(lda_model.print_topics(num_topics=5, num_words=3))
     #'''
 
+
+
 def use_model():
+    num_clusters = 5
+    top_n = 5
+    comments = get_comments()
+    comments_clean = [clean(comment).split() for comment in comments]
+    # Creating the term dictionary of our courpus, where every unique term is assigned an index.
+    dictionary = corpora.Dictionary(comments_clean)
     lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
     #print(lda_model.print_topics(num_topics=3, num_words=5))
-    print(lda_model.print_topics(num_topics=3, num_words=3))
-    print(lda_model.print_topic(1, topn=15))
 
+    #print(lda_model.print_topics(num_topics=5, num_words=5))
 
+    map = {}
+
+    for i in range(0, len(comments)):
+        bag_of_words = []
+        comment = comments[i]
+
+        for word in comment:
+            bag_of_words.append(word)
+
+        bag_of_words = comment.split()
+        last_word = bag_of_words[len(bag_of_words)-1]
+
+        if last_word[len(last_word)-1] in [',',';','?','.']: #remove end punctuation
+            last_word = last_word[:-1]
+            bag_of_words[len(bag_of_words)-1] = last_word
+
+        bow = dictionary.doc2bow(bag_of_words)
+        possible_homes = lda_model.get_document_topics(bow, minimum_probability=None, minimum_phi_value=None, per_word_topics=False)
+
+        #print(possible_homes)
+
+        home = -1
+        max_probability = 0
+
+        for x in possible_homes:
+            if x[1] > max_probability:
+                max_probability = x[1]
+                home = x[0]
+
+        #print(home)
+        map[comment] = [home, max_probability]
+
+    clusters = [[] for i in range(0,5)]
+
+    #print(clusters)
+
+    for item in map:
+        clusters[map[item][0]].append(item)
+
+    '''
+    for i in range(0,num_clusters):
+        print(clusters[i])
+        print('____________')
+    '''
+
+    '''
+    for x in clusters[2]:
+        print(x)
+    '''
+
+    test_cluster = find_top_n(2,top_n,map)
+
+    count = 0
+    for i in test_cluster:
+        count = count + 1
+        print(str(count) + ': ' +i)
+
+def find_top_n(cluster_number,top_n, comment_map):
+    list = []
+    next_threshold = 0
+    threshold = 0
+    list_count = 0
+    min_prob = 0
+    for comment in comment_map:
+        if comment_map[comment][0] == cluster_number: #Extract only from the cluster specified
+            if len(list) <= top_n:
+                list.append(comment)
+                if comment_map[comment][1] < min_prob:
+                    min_prob = comment_map[comment][1]
+                    threshold = min_prob
+            else:
+                prob = comment_map[comment][1]
+                if prob > threshold:
+                    for x in list: #remove smallest probability
+                        comment_map[comment][1] == threshold
+                        list.remove(x)
+                    list.append(comment)
+                    probs = [comment_map[x][1] for x in list]
+
+                    threshold = min(probs)
+
+    return list
 
 def main():
     print('Hello World!')
 
 if __name__ == "__main__":
+    #   train_model()
     use_model()
