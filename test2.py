@@ -5,6 +5,8 @@ from numpy import genfromtxt
 import numpy as np
 import pandas as pd
 import math
+import nltk
+
 
 from nltk.corpus import stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
@@ -35,17 +37,13 @@ def get_comments():
     #df=pd.read_csv('reddit_opiates.csv', sep=',',header=None)
     df = pd.read_csv('reddit_opiates.csv', sep=',', header=None)
     data = df.values
-    comments = data[0:100, [0]] #opiates
+    comments = data[0:10000, [0]] #opiates
     #comments = data[0:50, [1]] #lifestyle
     comments = comments.tolist()
     #print(comments)
     comments = [comment for sublist in comments for comment in sublist]
     #print(comments)
-    '''
-    for i in range(len(comments)):
-        if type(comments[i]) == float:
-            comments[i] = str(0)
-    '''
+
     return comments
 
 def get_doc_term_matrix(comments, dictionary):
@@ -58,88 +56,30 @@ def get_doc_term_matrix(comments, dictionary):
 def train_model():
     comments = get_comments()
     comments_clean = [clean(comment).split() for comment in comments]
+
+    # Lemmatize
+    lmtzr = WordNetLemmatizer()
+
+    for i in range(423,430):
+        print(comments_clean[i])
+        print(lmtzr.lemmatize(comments[i]))
+        print('-------------------')
+        print('--------------------')
+    return
+
+    #comments = [lmtzr.lemmatize(comment) for comment in comments]
+
     # Creating the term dictionary of our courpus, where every unique term is assigned an index.
     dictionary = corpora.Dictionary(comments_clean)
     doc_term_matrix = get_doc_term_matrix(comments_clean,dictionary)
     # Creating the object for LDA model using gensim library
     Lda = gensim.models.ldamodel.LdaModel
     # Running and Training LDA model on the document term matrix.
-    lda_model = Lda(doc_term_matrix, num_topics=5, id2word = dictionary, passes=50)
+    lda_model = Lda(doc_term_matrix, num_topics=10, id2word = dictionary, passes=50)
     # Save model
     lda_model.save('lda_model')
-    print(lda_model.print_topics(num_topics=5, num_words=3))
+    print(lda_model.print_topics(num_topics=10, num_words=3))
     #'''
-
-
-
-def use_model():
-    num_clusters = 5
-    top_n = 5
-    comments = get_comments()
-    comments_clean = [clean(comment).split() for comment in comments]
-    # Creating the term dictionary of our courpus, where every unique term is assigned an index.
-    dictionary = corpora.Dictionary(comments_clean)
-    lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
-    #print(lda_model.print_topics(num_topics=3, num_words=5))
-
-    #print(lda_model.print_topics(num_topics=5, num_words=5))
-
-    map = {}
-
-    for i in range(0, len(comments)):
-        bag_of_words = []
-        comment = comments[i]
-
-        for word in comment:
-            bag_of_words.append(word)
-
-        bag_of_words = comment.split()
-        last_word = bag_of_words[len(bag_of_words)-1]
-
-        if last_word[len(last_word)-1] in [',',';','?','.']: #remove end punctuation
-            last_word = last_word[:-1]
-            bag_of_words[len(bag_of_words)-1] = last_word
-
-        bow = dictionary.doc2bow(bag_of_words)
-        possible_homes = lda_model.get_document_topics(bow, minimum_probability=None, minimum_phi_value=None, per_word_topics=False)
-
-        #print(possible_homes)
-
-        home = -1
-        max_probability = 0
-
-        for x in possible_homes:
-            if x[1] > max_probability:
-                max_probability = x[1]
-                home = x[0]
-
-        #print(home)
-        map[comment] = [home, max_probability]
-
-    clusters = [[] for i in range(0,5)]
-
-    #print(clusters)
-
-    for item in map:
-        clusters[map[item][0]].append(item)
-
-    '''
-    for i in range(0,num_clusters):
-        print(clusters[i])
-        print('____________')
-    '''
-
-    '''
-    for x in clusters[2]:
-        print(x)
-    '''
-
-    test_cluster = find_top_n(2,top_n,map)
-
-    count = 0
-    for i in test_cluster:
-        count = count + 1
-        print(str(count) + ': ' +i)
 
 def find_top_n(cluster_number,top_n, comment_map):
     list = []
@@ -164,12 +104,108 @@ def find_top_n(cluster_number,top_n, comment_map):
                     probs = [comment_map[x][1] for x in list]
 
                     threshold = min(probs)
-
     return list
+
+def use_model():
+    lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
+    print(lda_model.print_topics(num_topics=10, num_words=10))
+    num_clusters = 10
+    top_n = 5
+    comments = get_comments()
+    comments_clean = [clean(comment).split() for comment in comments]
+    # Creating the term dictionary of our courpus, where every unique term is assigned an index.
+    dictionary = corpora.Dictionary(comments_clean)
+
+    #print(lda_model.print_topics(num_topics=3, num_words=5))
+
+    #print(lda_model.print_topics(num_topics=5, num_words=5))
+
+    map = {}
+
+    for i in range(0, len(comments)):
+        bag_of_words = []
+        comment = comments[i]
+        #print('comment: ', comment)
+
+        for word in comment:
+            bag_of_words.append(word)
+
+
+        bag_of_words = comment.split()
+
+
+        if len(bag_of_words) > 0:
+            last_word = bag_of_words[len(bag_of_words)-1]
+            if len(last_word) > 0 and last_word[len(last_word)-1] in [',',';','?','.']: #remove end punctuation
+                last_word = last_word[:-1]
+                bag_of_words[len(bag_of_words)-1] = last_word
+
+        bow = dictionary.doc2bow(bag_of_words)
+        possible_homes = lda_model.get_document_topics(bow, minimum_probability=None, minimum_phi_value=None, per_word_topics=False)
+
+        #print(possible_homes)
+
+        home = -1
+        max_probability = 0
+
+        for x in possible_homes:
+            if x[1] > max_probability:
+                max_probability = x[1]
+                home = x[0]
+
+        #print(home)
+        map[comment] = [home, max_probability]
+
+    clusters = [[] for i in range(0,num_clusters)]
+
+    #print(clusters)
+
+    for item in map:
+        clusters[map[item][0]].append(item)
+
+    '''
+    for i in range(0,num_clusters):
+        print(clusters[i])
+        print('____________')
+    '''
+
+    '''
+    for x in clusters[2]:
+        print(x)
+    '''
+
+    '''
+    count = 0
+
+    print(lda_model.print_topics(num_topics=10, num_words=3))
+    print('---------------')
+
+    test_cluster4 = find_top_n(cluster_number=4, top_n=top_n, comment_map = map)
+    test_cluster5 = find_top_n(cluster_number=5, top_n=top_n, comment_map=map)
+    test_cluster6 = find_top_n(cluster_number=6, top_n=top_n, comment_map=map)
+    test_cluster7 = find_top_n(cluster_number=7, top_n=top_n, comment_map=map)
+
+    for i in test_cluster4:
+        count = count + 1
+        print(str(count) + ': ' +i)
+    print('-----------')
+    for i in test_cluster5:
+        count = count + 1
+        print(str(count) + ': ' +i)
+    print('-----------')
+    for i in test_cluster6:
+        count = count + 1
+        print(str(count) + ': ' + i)
+    print('-----------')
+    for i in test_cluster7:
+        count = count + 1
+        print(str(count) + ': ' + i)
+    '''
+
 
 def main():
     print('Hello World!')
 
 if __name__ == "__main__":
-    #   train_model()
-    use_model()
+    train_model()
+    #use_model()
