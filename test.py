@@ -1,41 +1,40 @@
 import sqlite3
 import sys
 import os
-
-import re as jet
-#import sqlite3 as fuel
-import matplotlib.pyplot
-import numpy
-from collections import Counter as steel
-
+from numpy import genfromtxt
+import numpy as np
+import pandas as pd
+import math
+import nltk
 
 
-conn = sqlite3.connect('database.sqlite')
+from nltk.corpus import stopwords
+from nltk.stem.wordnet import WordNetLemmatizer
+import string
+import gensim
+from gensim import corpora
 
-c = conn.cursor()
+def get_comments():
+    #df=pd.read_csv('reddit_opiates.csv', sep=',',header=None)
+    df = pd.read_csv('reddit_opiates.csv', sep=',', header=None)
+    data = df.values
+    comments = data[0:10, [0]] #opiates
+    for i in range(1, len(comments)):
+        print(data[i][5])
+        if int(data[i][5]) < 1:
+            #print('hi')
+            #comments = np.delete(comments, i)
+    #comments = data[0:50, [1]] #lifestyle
+    comments = comments.tolist()
+    #print(comments)
+    comments = [comment for sublist in comments for comment in sublist]
+    #print(comments)
 
-meme = "SELECT lower(body)      \
-    FROM May2015                \
-    WHERE LENGTH(body) < 40     \
-    and LENGTH(body) > 20       \
-    and lower(body) LIKE 'jet fuel can''t melt%' \
-    LIMIT 100";
+    return comments
 
+def main():
+    comments = get_comments()
+    print(comments)
 
-beams = []
-
-for illuminati in conn.execute(meme):
-    illuminati = jet.sub('[\"\'\\,!\.]', '', (''.join(illuminati)))
-    illuminati = (illuminati.split("cant melt"))[1]
-    illuminati = illuminati.strip()
-    beams.append(illuminati)
-
-bush = steel(beams).most_common()
-labels, values = zip(*bush)
-indexes = numpy.arange(len(labels))
-
-matplotlib.pyplot.barh(indexes, values)
-matplotlib.pyplot.yticks(indexes, labels)
-matplotlib.pyplot.tight_layout()
-matplotlib.pyplot.savefig('dankmemes.png')
-
+if __name__ == "__main__":
+    main()
