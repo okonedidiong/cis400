@@ -22,6 +22,8 @@ from sklearn import preprocessing
 
 import itertools
 
+
+
 def clean(doc):
     manual_stop = open('manual_stop_words', 'r')
     manual_stop_list = [line.strip() for line in manual_stop]
@@ -60,8 +62,14 @@ def docs_example():
     docs_complete = [doc1, doc2, doc3, doc4, doc5]
     return docs_complete
 
-def get_comments(num_comments):
-    df = pd.read_csv('mydata.csv', sep=',', header=None)
+def get_comments(num_comments, model):
+    if model == 'lda':
+        df = pd.read_csv('mydata.csv', sep=',', header=None)
+    elif model == 'depression_lda':
+        df = pd.read_csv('depression_data_all.csv', sep=',', header=None)
+    else:
+        return
+
     data = df.values
     comments = data[:num_comments, [0]]
     comments = comments.tolist()
@@ -69,11 +77,10 @@ def get_comments(num_comments):
     comments = [str(comment) for comment in comments]
     return comments
 
-
-def train_model(k, num_comments):
+def train_model(k, num_comments, model):
 
     # Load Reddit comments
-    comments = get_comments(num_comments)
+    comments = get_comments(num_comments, model)
 
     # Clean Reddit comments
     comments_clean = [clean(comment).split() for comment in comments]
@@ -84,22 +91,65 @@ def train_model(k, num_comments):
     # Create document term matrix from the dictionary created above
     doc_term_matrix = [dictionary.doc2bow(comment) for comment in comments_clean]
 
-    #Creating the object for LDA model using gensim library
-    Lda = gensim.models.ldamodel.LdaModel
 
-    # Running and Training LDA model on the document term matrix.
-    lda_model = Lda(doc_term_matrix, num_topics=k, id2word = dictionary, passes=10)
+    if model == 'lda':
+        #Creating the object for LDA model using gensim library
+        Lda = gensim.models.ldamodel.LdaModel
 
-    # Save model
-    lda_model.save('lda_model')
-    # Print the top 10 words from each topic
-    for i in lda_model.print_topics(num_topics=k, num_words=15):
-        print(i)
+        # Running and training LDA model on the document term matrix.
+        lda_model = Lda(doc_term_matrix, num_topics=k, id2word = dictionary, passes=10)
+
+        # Save model
+        lda_model.save('lda_model')
+
+        # Print the top 25 words from each topic
+        for i in lda_model.print_topics(num_topics=k, num_words=25):
+            print(i)
+
+    if model == 'depression_lda':
+        # Creating the object for LDA model using gensim library
+        Lda = gensim.models.ldamodel.LdaModel
+
+        # Running and training LDA model on the document term matrix.
+        lda_model = Lda(doc_term_matrix, num_topics=k, id2word=dictionary, passes=10)
+
+        # Save model
+        lda_model.save('depression_lda_model')
+
+        # Print the top 25 words from each topic
+        for i in lda_model.print_topics(num_topics=k, num_words=50):
+            print(i)
+
+    elif model == 'hdp':
+        # Creating the object for HDP model using gensim library
+        Hdp = gensim.models.HdpModel
+
+        #Running and training HDP model on the document term matrix
+        hdp_model = Hdp(corpus=doc_term_matrix, id2word=dictionary)
+
+        # Save model
+        hdp_model.save('hdp_model')
+
+        # Print the top 25 words from each topic
+        for i in hdp_model.print_topics(num_topics=k, num_words=25):
+            print(i)
+
+    elif model == 'lsi':
+        # Creating the object for HDP model using gensim library
+        Lsi = gensim.models.LsiModel
+
+        lsi_model = Lsi(doc_term_matrix, num_topics=k, id2word=dictionary)
+
+        # Save model
+        lsi_model.save('lsi_model')
+
+        # Print the top 25 words from each topic
+        for i in lsi_model.print_topics(num_topics=k, num_words=25):
+            print(i)
 
 
 def find_top_n(cluster_number, top_n, comment_map):
     list = []
-
     for comment in comment_map:
         if comment_map[comment][0] == cluster_number: #Extract only from the cluster specified
             if len(list) < top_n:
@@ -110,13 +160,11 @@ def find_top_n(cluster_number, top_n, comment_map):
                     min_prob = comment_map[comment][1]
                     threshold = min_prob
                 '''
-
             else:
                 prob = comment_map[comment][1]
                 probs = [comment_map[x][1] for x in list]
                 threshold = min(probs)
                 if prob > threshold:
-                    #print("lol")
                     for x in list: #remove smallest probability
                         if comment_map[x][1] <= threshold:
                             #print('REMOVED: ' + str(cluster_number))
@@ -125,8 +173,11 @@ def find_top_n(cluster_number, top_n, comment_map):
                     list.append(comment)
     return list
 
-def use_model(k, num_comments):
-    lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
+def representative_comments(k, num_comments, model):
+    if model == 'lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
+    elif model == 'depression_lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('depression_lda_model')
 
     #for i in range(1,k):
     #    lda_model.show_topic(k, topn=10)
@@ -137,29 +188,45 @@ def use_model(k, num_comments):
     '''
 
     num_clusters = k
-    top_n = 10
-    comments = get_comments(num_comments)
+    top_n = 25
+    comments = get_comments(num_comments, model)
     comments_clean = [clean(comment).split() for comment in comments]
     # Creating the term dictionary of our courpus, where every unique term is assigned an index.
     dictionary = corpora.Dictionary(comments_clean)
 
     map = {}
 
-    for i in range(0, len(comments)):
+    '''
+    for i in range(0, 10):
+        print(comments[i])
+        print(comments_clean[i])
+        print('***************')
+        print('***************')
+    '''
+
+    #print('getting started')
+    #for i in range(0, len(comments)):
+    for i in range(0, num_comments):
         if len(comments[i]) > 125:
             continue
         bag_of_words = []
         comment = comments[i]
         comment_clean = clean(comment)
 
+        '''
         for word in comment_clean:
             bag_of_words.append(word)
+        '''
 
-        bag_of_words = comment.split()
+        bag_of_words = comment_clean.split()
+        #print('bag of words')
+        #print('----------')
+        #print('----------')
+        #print(bag_of_words)
 
-        if len(bag_of_words) > 0:
+        if len(bag_of_words) > 0: #this if block removes ending punctuation
             last_word = bag_of_words[len(bag_of_words)-1]
-            if len(last_word) > 0 and last_word[len(last_word)-1] in set(string.punctuation): #remove end punctuation
+            if len(last_word) > 0 and last_word[len(last_word)-1] in set(string.punctuation):
                 last_word = last_word[:-1]
                 bag_of_words[len(bag_of_words)-1] = last_word
 
@@ -169,10 +236,12 @@ def use_model(k, num_comments):
         home = -1
         max_probability = 0
 
+        #print(possible_homes)
         for x in possible_homes:
             if x[1] > max_probability:
                 max_probability = x[1]
                 home = x[0]
+
 
         map[comment] = [home, max_probability]
 
@@ -181,13 +250,27 @@ def use_model(k, num_comments):
     for item in map:
         clusters[map[item][0]].append(item)
 
-    print_top_n(k=k,map=map)
 
-def print_top_n(k,map):
-    lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
+    #print(map)
+    #print('----------')
+    #print(clusters)
+
+
+    #print_top_n(k=k,map=map)
+
+    return map #links comment to topic
+
+
+    #return clusters #cluster[i] is list most representative of comments
+
+def print_top_n(k,map, model):
+    if model == 'lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
+    elif model == 'depression_lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('depression_lda_model')
     all_top_n = []
     for i in range(0, k):
-        top_n = find_top_n(cluster_number=i, top_n=10, comment_map=map)
+        top_n = find_top_n(cluster_number=i, top_n=15, comment_map=map)
         all_top_n.append(top_n)
         count = 0
         print('*************')
@@ -204,22 +287,23 @@ def print_top_n(k,map):
         count = 0
 
 
-def print_topics(num_topics):
+
+def print_topics(num_topics, num_words, model):
     lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
 
-    for i in lda_model.print_topics(num_topics=num_topics, num_words=15):
+    for i in lda_model.print_topics(num_topics=num_topics, num_words=num_words):
         print(i)
 
     return
 
 
-def compute_w2v_affinity_matrix(topic_similarities, words, t_id=0, top_n=25):
+def compute_w2v_affinity_matrix(topic_similarities, words, t_id=0, top_n=50):
     if topic_similarities:
         word2vec_similarities = np.zeros((top_n, top_n))
         lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
 
         words = []
-        topic = lda_model.show_topic(topicid=t_id, topn=25)
+        topic = lda_model.show_topic(topicid=t_id, topn=top_n)
         for term in topic:
             words.append(term[0])
 
@@ -258,8 +342,14 @@ def compute_w2v_affinity_matrix(topic_similarities, words, t_id=0, top_n=25):
 
     return word2vec_similarities
 
-def cluster_topics(k):
-    lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
+def cluster_topics(k, model):
+    if model == 'lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
+    elif model == 'depression_lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('depression_lda_model')
+    else:
+        return
+
     all_clusters = []
     formatted_output = []
 
@@ -270,7 +360,7 @@ def cluster_topics(k):
         formatted = [[] for _ in range(0,k_sil)]
 
         words = []
-        topic = lda_model.show_topic(topicid=i, topn=25)
+        topic = lda_model.show_topic(topicid=i, topn=50)
 
         for term in topic:
             words.append(term[0])
@@ -282,8 +372,8 @@ def cluster_topics(k):
 
     return [formatted_output, all_clusters]
 
-def print_clustered_topics(formatted_output, all_clusters):
-    [formatted_output, all_clusters] = cluster_topics(num_topics)
+def print_clustered_topics(formatted_output, all_clusters, model):
+    [formatted_output, all_clusters] = cluster_topics(num_topics, model)
     for i in range(0, len(formatted_output)):
         print('TOPIC NUMBER: ' + str(i))
         print('-------------------')
@@ -328,8 +418,9 @@ def spectral_clustering(distance_matrix, distance_matrix2 = []):
     return [clusters, k_pca]
 
 
-def representative_comments():
-    [formatted_output, all_clusters] = cluster_topics(num_topics)
+
+def word2vec_topic_clusters(model): #word2vec clistering output
+    [formatted_output, all_clusters] = cluster_topics(num_topics, model)
 
     for i in range(0, len(formatted_output)):
         print('TOPIC NUMBER: ' + str(i))
@@ -341,9 +432,9 @@ def representative_comments():
         print('**********')
         print('**********')
 
-def find_number_of_topics(num_comments):
+def find_number_of_topics(num_comments, model):
     # Load Reddit comments
-    comments = get_comments(num_comments)
+    comments = get_comments(num_comments, model)
 
     # Clean Reddit comments
     comments_clean = [clean(comment).split() for comment in comments]
@@ -367,13 +458,26 @@ def main():
 
 if __name__ == "__main__":
     num_topics = 25
-    num_comments = 176000
+    #num_comments = 176000
+    num_comments_depression = 2201551
 
-    print_topics(num_topics)
-    #train_model(num_topics, num_comments)
-    #clusters = cluster_topics(num_topics)
+    #get_comments(num_comments, 'depression_lda')
+
+
+    #train_model(num_topics, num_comments_depression, 'depression_lda')
+    #clusters = cluster_topics(num_topics, 'depression_lda)
     #print_clustered_topics(clusters[0], clusters[1])
-    #use_model(num_topics, num_comments)
-    #representative_comments()
     #k = find_number_of_topics(num_comments)
     #print(k)
+
+    '''
+    map = representative_comments(num_topics, num_comments_depression, 'depression_lda')
+    print_top_n(num_topics, map, 'depression_lda')
+    '''
+
+    #find_number_of_topics(num_comments_depression, 'depression_lda')
+
+    #'''
+    clusters = cluster_topics(num_topics, 'depression_lda')
+    print_clustered_topics(clusters[0], clusters[1], 'depression_lda')
+    #'''
