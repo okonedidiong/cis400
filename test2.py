@@ -62,20 +62,86 @@ def docs_example():
     docs_complete = [doc1, doc2, doc3, doc4, doc5]
     return docs_complete
 
+def get_num_comments(model):
+    if model == 'lda':
+        df = pd.read_csv('mydata.csv', sep=',', header=None)
+    elif model == 'depression_lda':
+        df = pd.read_csv('depression_data_all.csv', sep=',', header=None)
+    elif model == 'womens_health_lda':
+        df = pd.read_csv('wh.csv', sep=',', header=None)
+    elif model == 'derm_cannabis_lda':
+        return len(get_cannabis_comments())
+
+    data = df.values
+    return len(data)
+
+
 def get_comments(num_comments, model):
     if model == 'lda':
         df = pd.read_csv('mydata.csv', sep=',', header=None)
     elif model == 'depression_lda':
         df = pd.read_csv('depression_data_all.csv', sep=',', header=None)
+    elif model == 'womens_health_lda':
+        df = pd.read_csv('wh.csv', sep=',', header=None)
+    elif model == 'derm_cannabis_lda':
+        return get_cannabis_comments()
     else:
         return
 
     data = df.values
+    print(len(data))
     comments = data[:num_comments, [0]]
     comments = comments.tolist()
     comments = [comment for sublist in comments for comment in sublist]
     comments = [str(comment) for comment in comments]
     return comments
+
+def load_model(model):
+    if model == 'lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
+    elif model == 'depression_lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('depression_lda_model')
+    elif model == 'womens_health_lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('womens_health_lda_model')
+    elif model == 'derm_cannabis_lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('derm_cannabis_lda_model')
+    else:
+        return None
+
+    return lda_model
+
+def intersect(str1, list):
+    for item in list:
+        if item in str1:
+            return True
+    return False
+
+def get_cannabis_comments():
+    df = pd.read_csv('mydata.csv', sep=',', header=None)
+
+    top_500 = pd.read_csv('cannabis_500.csv')
+    top_500 = top_500.values
+    top_500 = [t[1] for t in top_500]
+
+    data = df.values
+    comments = data[:, [0]]
+    comments = comments.tolist()
+    comments = [comment for sublist in comments for comment in sublist]
+    comments = [str(comment) for comment in comments]
+
+    cannabis_comments = []
+    for c in comments:
+        if intersect(c, top_500):
+            cannabis_comments.append(c)
+
+
+    '''
+    w2v_model = pickle.load(open('word2vec_model', 'rb'))
+    print(w2v_model.similar_by_vector('marijuana', 10))
+    '''
+
+    return cannabis_comments
+
 
 def train_model(k, num_comments, model):
 
@@ -106,6 +172,20 @@ def train_model(k, num_comments, model):
         for i in lda_model.print_topics(num_topics=k, num_words=25):
             print(i)
 
+    if model == 'derm_cannabis_lda':
+        # Creating the object for LDA model using gensim library
+        Lda = gensim.models.ldamodel.LdaModel
+
+        # Running and training LDA model on the document term matrix.
+        lda_model = Lda(doc_term_matrix, num_topics=k, id2word=dictionary, passes=10)
+
+        # Save model
+        lda_model.save('derm_cannabis_lda_model')
+
+        # Print the top 25 words from each topic
+        for i in lda_model.print_topics(num_topics=k, num_words=25):
+            print(i)
+
     if model == 'depression_lda':
         # Creating the object for LDA model using gensim library
         Lda = gensim.models.ldamodel.LdaModel
@@ -118,6 +198,34 @@ def train_model(k, num_comments, model):
 
         # Print the top 25 words from each topic
         for i in lda_model.print_topics(num_topics=k, num_words=50):
+            print(i)
+
+    if model == 'womens_health_lda':
+        # Creating the object for LDA model using gensim library
+        Lda = gensim.models.ldamodel.LdaModel
+
+        # Running and training LDA model on the document term matrix.
+        lda_model = Lda(doc_term_matrix, num_topics=k, id2word=dictionary, passes=10)
+
+        # Save model
+        lda_model.save('womens_health_lda_model')
+
+        # Print the top 25 words from each topic
+        for i in lda_model.print_topics(num_topics=k, num_words=50):
+            print(i)
+
+    if model == 'cannabis_lda':
+        # Creating the object for LDA model using gensim library
+        Lda = gensim.models.ldamodel.LdaModel
+
+        # Running and training LDA model on the document term matrix.
+        lda_model = Lda(doc_term_matrix, num_topics=k, id2word=dictionary, passes=10)
+
+        # Save model
+        lda_model.save('cannabis_lda_model')
+
+        # Print the top 25 words from each topic
+        for i in lda_model.print_topics(num_topics=k, num_words=200):
             print(i)
 
     elif model == 'hdp':
@@ -174,10 +282,7 @@ def find_top_n(cluster_number, top_n, comment_map):
     return list
 
 def representative_comments(k, num_comments, model):
-    if model == 'lda':
-        lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
-    elif model == 'depression_lda':
-        lda_model = gensim.models.ldamodel.LdaModel.load('depression_lda_model')
+    lda_model = load_model(model)
 
     #for i in range(1,k):
     #    lda_model.show_topic(k, topn=10)
@@ -263,11 +368,11 @@ def representative_comments(k, num_comments, model):
 
     #return clusters #cluster[i] is list most representative of comments
 
+
+
 def print_top_n(k,map, model):
-    if model == 'lda':
-        lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
-    elif model == 'depression_lda':
-        lda_model = gensim.models.ldamodel.LdaModel.load('depression_lda_model')
+    lda_model = load_model(model)
+
     all_top_n = []
     for i in range(0, k):
         top_n = find_top_n(cluster_number=i, top_n=15, comment_map=map)
@@ -289,7 +394,7 @@ def print_top_n(k,map, model):
 
 
 def print_topics(num_topics, num_words, model):
-    lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
+    lda_model = load_model(model)
 
     for i in lda_model.print_topics(num_topics=num_topics, num_words=num_words):
         print(i)
@@ -347,6 +452,10 @@ def cluster_topics(k, model):
         lda_model = gensim.models.ldamodel.LdaModel.load('lda_model')
     elif model == 'depression_lda':
         lda_model = gensim.models.ldamodel.LdaModel.load('depression_lda_model')
+    elif model == 'womens_health_lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('womens_health_lda_model')
+    elif model == 'cannabis_lda':
+        lda_model = gensim.models.ldamodel.LdaModel.load('cannabis_lda_model')
     else:
         return
 
@@ -372,7 +481,7 @@ def cluster_topics(k, model):
 
     return [formatted_output, all_clusters]
 
-def print_clustered_topics(formatted_output, all_clusters, model):
+def print_clustered_topics(model, num_topics):
     [formatted_output, all_clusters] = cluster_topics(num_topics, model)
     for i in range(0, len(formatted_output)):
         print('TOPIC NUMBER: ' + str(i))
@@ -455,29 +564,67 @@ def find_number_of_topics(num_comments, model):
 def main():
     print('Hello World!')
 
+def lipoff():
+    num_topics = 25
+    num_cannabis_comments = 84641
+    cannabis_comments = get_cannabis_comments()
+    #train_model(num_topics, num_comments=num_cannabis_comments, model='derm_cannabis_lda')(
+    print_topics(num_topics=num_topics, num_words=200, model='derm_cannabis_lda')
+
+
+def full_pipeline(num_topics, model, num_comments=None):
+    #get number of comments
+    if num_comments == None:
+        num_comments = get_num_comments(model)
+
+    print('num_comments: ', num_comments)
+
+    #train_model
+    train_model(num_topics, num_comments, model)
+
+    #print model
+    print_topics(num_topics, 200, model)
+
+    # print clustered topics
+    print_clustered_topics(model, num_topics)
+
+    #get comments most likely to be produced by each topic
+    map = representative_comments(num_topics, num_comments, models[2])
+    print_top_n(num_topics, map, models[2])
+
 
 if __name__ == "__main__":
-    num_topics = 25
+
+    models = ['lda', 'depression_lda', 'womens_health_lda', 'cannabis_lda']
+    model = models[2]
+
+    #lipoff()
+
+    #full_pipeline(25, models[2])
+
+    get_comments(176000, models[0])
+
+    #num_topics = 25
     #num_comments = 176000
-    num_comments_depression = 2201551
+    #num_comments_depression = 2201551
+    #num_comments_womens_health = 3518
 
-    #get_comments(num_comments, 'depression_lda')
+    #print_topics(num_topics, 200, models[2])
 
 
-    #train_model(num_topics, num_comments_depression, 'depression_lda')
-    #clusters = cluster_topics(num_topics, 'depression_lda)
-    #print_clustered_topics(clusters[0], clusters[1])
+    #train_model(num_topics, num_comments_womens_health, models[2])
+    #print_clustered_topics(models[2])
     #k = find_number_of_topics(num_comments)
     #print(k)
 
-    '''
-    map = representative_comments(num_topics, num_comments_depression, 'depression_lda')
-    print_top_n(num_topics, map, 'depression_lda')
-    '''
+    #'''
+    #map = representative_comments(num_topics, num_comments_womens_health, models[2])
+    #print_top_n(num_topics, map, models[2])
+    #'''
 
     #find_number_of_topics(num_comments_depression, 'depression_lda')
 
     #'''
-    clusters = cluster_topics(num_topics, 'depression_lda')
-    print_clustered_topics(clusters[0], clusters[1], 'depression_lda')
+    #clusters = cluster_topics(num_topics, 'depression_lda')
+    #print_clustered_topics(clusters[0], clusters[1], 'depression_lda')
     #'''
